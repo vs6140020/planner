@@ -11,6 +11,14 @@
   <style type="text/css">
     .progress {border: 1px solid rgba(0, 0, 0, 1); 
                 border-radius: 4px; height: 20px;}
+    .ui-state-default{
+      background:#fff;
+      border:none;
+      border-bottom:1px solid #ddd;
+    }
+    .task{
+      margin-left: 2px;
+    }
   </style>
 </head>
 <body>
@@ -20,7 +28,11 @@
     <h4 id="total_progress"></h4>
     <br/><br/>
     <div class="progress" id="progressbar" style="height:40px"></div>
-    <br><br>
+    <br>
+    <div class="row"><div class="col-md-8"><h4>Next item on your agenda:</h4></div></div>
+    <div class="row" id="next_item">
+    </div>
+    <br>
     <div class="row">
       <div class="col-md-6">
         <div class="todoHeader" style="background-color: #28a745;"><center><h4>Todo</h4></center></div>
@@ -40,22 +52,32 @@
   function fetchElements(){
     var tasks = initializeObjects();
     updateStatusAndProgressBar(tasks);
-    updateTodoAndDoneLists();
+    var firstUndoneTask = updateTodoAndDoneLists(tasks);
+    fetchNextItemOnAgenda(firstUndoneTask);
   }
 
   function initializeObjects(){
-    //progress here represents the status of the task, 0 means not started,1 means partially done, 2 means completed.
-    var task1 = {progress:"partially-done", subtasks:{subtask1:true, subtask2:true, subtask3:false}};
-    var task2 = {progress:"not-done", subtasks:{}};
-    var task3 = {progress:"partially-done", subtasks:{subtask1:true, subtask2:false, subtask3: false}};
-    var task4 = {progress:"done", subtasks:{subtask1:true, subtask2:true}};
+    var subtask1_1 = {progress:"not-done", content: "Do this thing first for task1"};
+    var subtask1_2 = {progress:"done", content:"Do this thing second for task1"};
+    var subtask3_1 = {progress:"done", content: "Do this thing first for task3"};
+    var subtask3_2 = {progress:"not-done", content: "Do this thing second for task3"};
+    var subtask4_1 = {progress:"done", content: "Do this thing first for task4"};
+    var subtask4_2 = {progress:"done", content: "Do this thing second for task4"};
+    
+
+    var task1 = {progress:"partially-done", subtasks:{sbtsk1:subtask1_1, sbtsk2:subtask1_2}, content: "Task1"};
+    var task2 = {progress:"not-done", subtasks:{}, content: "Task2"};
+    var task3 = {progress:"partially-done", subtasks:{sbtsk1:subtask3_1, sbtsk2:subtask3_2}, content: "Task3"};
+    var task4 = {progress:"done", subtasks:{sbtsk1:subtask4_1, sbtsk2:subtask4_2}, content: "Task4"};
+
     var tasks = {t1: task1, t2:task2, t3:task3, t4: task4};
     return tasks;
   }
 
-  function updateTodoAndDoneLists(){
-    fetchRemainingItems();
-    fetchDoneItems();
+  function updateTodoAndDoneLists(tasks){
+    var task = fetchRemainingItems(tasks);
+    fetchDoneItems(tasks);
+    return task;
   }
 
   function updateStatusAndProgressBar(tasks){
@@ -63,15 +85,103 @@
     fetchProgressBar(tasks);
   }
 
-  function fetchRemainingItems(){
-    //logic to fetch the current item from the database in a checkbox(kind of a todo list)
-    var htmlString = "<ul id=\"sortable\" class=\"list-unstyled\"><li class=\"ui-state-default\"><div class=\"checkbox\"><label><input type=\"checkbox\" value=\"\" />Take out the trash</label></div></li></ul>";
-    document.getElementById("remainingItems").innerHTML = htmlString;
+  function fetchNextItemOnAgenda(firstUndoneTask){
+    var htmlString = "<div class=\"col-md-8\">";
+    var content = "";
+    if(Object.keys(firstUndoneTask.subtasks).length == 0){
+      content += firstUndoneTask.content;
+    }
+    else{
+      //getting the first subtask and displaying it.
+      for(sbtsk in firstUndoneTask.subtasks){
+        var subtask = firstUndoneTask.subtasks[sbtsk];
+        if (subtask.progress == "not-done") {
+          content += subtask.content;
+          break;
+        }
+      }
+    }
+    if(content != ""){
+      htmlString += "<font size=\"5\">"+content+"</font></div>";
+      htmlString += "<div class=\"col-md-4\"><button type=\"button\" class=\"btn btn-success btn-sm\" value=\""+content+"\">Done</button></div>";
+    }
+    else{
+      htmlString += "Congratulations on acheiving the set goal, there are no items remaining on your agenda.</div>";
+    }
+    document.getElementById("next_item").innerHTML = htmlString;
   }
 
-  function fetchDoneItems(){
-    //logic to fetch the done items from the database with a button on the right side(not done) will send the item back to the remainingItems list.
-    document.getElementById("doneItems").innerHTML = "<h3>Done:</h3>"
+  function fetchRemainingItems(tasks){
+    var htmlString = "<ul class=\"list-unstyled\">";
+    var firstUndoneTask;
+    var flag = false;
+    for(var tsk in tasks){
+      var task = tasks[tsk];
+      if(task.progress == "not-done"){
+        if(!flag){
+          flag = true;
+          firstUndoneTask = task;
+        }
+        htmlString += returnUnalteredTask(task, "not-done");
+      }
+      else if (task.progress == "partially-done") {
+        if(!flag){
+          flag = true;
+          firstUndoneTask = task;
+        }
+        htmlString += returnPartiallyFilledTask(task, "not-done");
+      }
+    }
+    htmlString += "</ul>";
+    document.getElementById("remainingItems").innerHTML = htmlString;
+    return firstUndoneTask;
+  }
+
+  function fetchDoneItems(tasks){
+    var htmlString = "<ul class=\"list-unstyled\">";
+    for(var tsk in tasks){
+      var task = tasks[tsk];
+      if(task.progress == "done"){
+        htmlString += returnUnalteredTask(task, "done");
+      }
+      else if (task.progress == "partially-done") {
+        htmlString += returnPartiallyFilledTask(task, "done");
+      }
+    }
+    htmlString += "</ul>";
+    document.getElementById("doneItems").innerHTML = htmlString;
+  }
+
+  function returnPartiallyFilledTask(task, progressStatus){
+    var checkedOrNot = (progressStatus == "done") ? "checked" : "";
+    var htmlString = "<li class=\"ui-state-default\"><label><input type=\"checkbox\" value=\"\"/><font class=\"task\" size=\"4\">"+task.content+"</font></label>";
+    if (Object.keys(task.subtasks).length != 0){
+      htmlString += "<ul>";
+      for(sbtsk in task.subtasks){
+        var subtask = task.subtasks[sbtsk];
+        if(subtask.progress == progressStatus){
+          htmlString += "<li class=\"ui-state-default\"><label><input type=\"checkbox\" "+checkedOrNot+"><font class=\"task\" size=\"3\">"+subtask.content+"</font></label></li>";
+        }
+      }
+      htmlString += "</ul>";
+    }
+    htmlString +="</li>";
+    return htmlString;
+  }
+
+  function returnUnalteredTask(task, progressStatus){
+    var checkedOrNot = (progressStatus == "done") ? "checked" : "";
+    var htmlString = "<li class=\"ui-state-default\"><label><input type=\"checkbox\" value=\"\" "+checkedOrNot+"/><font class=\"task\" size=\"4\">"+task.content+"</font></label>";
+    if(Object.keys(task.subtasks).length != 0){
+      htmlString +="<ul>";
+      for(sbtsk in task.subtasks){
+        var subtask = task.subtasks[sbtsk];
+        htmlString += "<li class=\"ui-state-default\"><label><input type=\"checkbox\"  "+checkedOrNot+"><font class=\"task\" size=\"3\">"+subtask.content+"</font></label></li>";
+      }
+      htmlString +="</ul>";
+    }
+    htmlString += "</li>";
+    return htmlString;
   }
 
   function calculateProgress(tasks){
@@ -82,8 +192,9 @@
       if(task.progress == "partially-done"){
         var subtasks = task.subtasks;
         var numberOfSubtasks = Object.keys(subtasks).length;
-        for(subtask in subtasks){
-          if(subtasks[subtask] == true){
+        for(sbtsk in subtasks){
+          var subtask = subtasks[sbtsk];
+          if(subtask.progress == "done"){
             progress += 100/(numberOfTasks * numberOfSubtasks);
           }
         }
@@ -126,9 +237,9 @@
     var numberOfSubtasks = Object.keys(subtasks).length;
     percent = percent/numberOfSubtasks;
     var progressbarBufferString = "";
-    for(var subtask in subtasks){
-      var status = subtasks[subtask];
-      if(status == true){
+    for(var sbtsk in subtasks){
+      var subtask = subtasks[sbtsk];
+      if(subtask.progress == "done"){
         progressbarBufferString += returnFilledBar(percent);
       }
       else{
@@ -137,21 +248,6 @@
     }
     return progressbarBufferString;
    }
-
-   /*function calculateTaskAllocation(numberOfTasks, numberOfSubtasks){
-    var progressbarBufferString = "";
-    if(numberOfSubtasks == 0){
-      percent = 100/numberOfTasks;
-      progressbarBufferString = "<div class=\"progress-bar progress-bar-success\" role=\"progressbar\" style=\"width:"+percent+"%\">Free Space</div>";
-    }
-    else{
-      percent = 100/(numberOfTasks* numberOfSubtasks);
-      for(var i=0; i<numberOfSubtasks; i++){
-        progressbarBufferString += "<div class=\"progress-bar progress-bar-plain\" role=\"progressbar\" style=\"width:"+percent+"%\">Free Space</div>";
-      }
-    }
-    return progressbarBufferString;
-   }*/
 </script>
 </body>
 </html>
