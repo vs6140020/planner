@@ -13,13 +13,22 @@
 	<div class="container">
 		<div class="row">
 			<div class="col-md-12" style="background-color: #28a745;">
-				<center><h3>Welcome {{ name }}</h3></center>
+				<center><h3>Welcome Boi</h3></center>
 			</div>
 		</div>
 		<br>
 		<div class="row">
 			<div class="col-md-6">
 				<center><h3>My tasks</h3></center>
+				{% if project_list %}
+    			<ul>
+    				{% for project in project_list %}
+			        <li><a href="{% url 'template' project.project_name %}">{{ project.project_name }} - {{ project.progress }}</a></li>
+    				{% endfor %}
+    			</ul>
+				{% else %}
+    				<p>No tasks yet.</p>
+				{% endif %}
 			</div>
 			<div class="col-md-6">
 				<center><h3>TODO list</h3></center>

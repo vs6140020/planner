@@ -47,7 +47,15 @@
   </div>
 
 <script type="text/javascript"> 
-    window.onload = fetchElements();
+    window.onload = testMethod();
+
+  function testMethod(){
+    var htmlString ='';
+    {% for task in task_list %}
+              htmlString += '<li>{{ task.content }}</li>';
+    {% endfor %}
+    document.getElementById("next_item").innerHTML = htmlString;
+  }
 
   function fetchElements(){
     var tasks = initializeObjects();
@@ -186,8 +194,18 @@
 
   function calculateProgress(tasks){
     var progress = 0;
-    var numberOfTasks = Object.keys(tasks).length;
-    for(var taskNumber in tasks){
+    {% for task in task_list %}
+      {% if(task.progress=="partially-done") %}
+        {% for subtask in task.subtask_set.all() %}
+          {% if(subtask.progress == "done") %}
+            progress += 100/({{ len(task_list) }} * len(task.subtask_set.all()));
+          {% endif %}
+        {% endfor %}
+      {% elseif(task.progress=='done') %}
+        progress += 100/({{ len(task_list) }});
+      {% endif %}
+    {% endfor %}
+    /*for(var taskNumber in tasks){
       var task = tasks[taskNumber];
       if(task.progress == "partially-done"){
         var subtasks = task.subtasks;
@@ -202,7 +220,7 @@
       else if(task.progress == "done"){
         progress += 100/(numberOfTasks);
       }
-    }
+    }*/
     document.getElementById("total_progress").innerHTML = "Current progress: "+progress +"%";
   }
 
