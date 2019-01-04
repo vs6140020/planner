@@ -24,7 +24,7 @@
 <body>
 	<div class="container">
     <br><br>
-    <h2>Task Name</h2>
+    <h2>{{ project_name }}</h2>
     <h4 id="total_progress"></h4>
     <br/><br/>
     <div class="progress" id="progressbar" style="height:40px"></div>
@@ -47,24 +47,36 @@
   </div>
 
 <script type="text/javascript"> 
-    window.onload = testMethod();
-
-  function testMethod(){
-    var htmlString ='';
-    {% for task in task_list %}
-              htmlString += '<li>{{ task.content }}</li>';
-    {% endfor %}
-    document.getElementById("next_item").innerHTML = htmlString;
-  }
+  window.onload = fetchElements();
 
   function fetchElements(){
-    var tasks = initializeObjects();
+    var tasks = loadObjects();
     updateStatusAndProgressBar(tasks);
     var firstUndoneTask = updateTodoAndDoneLists(tasks);
     fetchNextItemOnAgenda(firstUndoneTask);
   }
 
-  function initializeObjects(){
+  function loadObjects(){
+    var tasks = [
+      {% for task in task_list %}
+      {
+        content: "{{ task.content }}",
+        progress: "{{ task.progress }}",
+        subtasks: [
+        {% for subtask in task.subtask_set.all %}
+        {
+          content: "{{ subtask.content }}",
+          progress: "{{ subtask.progress }}"
+        },
+        {% endfor %}
+        ]
+      },
+      {% endfor %}
+    ];
+    return tasks;
+  }
+
+  /*function initializeObjects(){
     var subtask1_1 = {progress:"not-done", content: "Do this thing first for task1"};
     var subtask1_2 = {progress:"done", content:"Do this thing second for task1"};
     var subtask3_1 = {progress:"done", content: "Do this thing first for task3"};
@@ -80,7 +92,7 @@
 
     var tasks = {t1: task1, t2:task2, t3:task3, t4: task4};
     return tasks;
-  }
+  }*/
 
   function updateTodoAndDoneLists(tasks){
     var task = fetchRemainingItems(tasks);
@@ -119,6 +131,30 @@
     document.getElementById("next_item").innerHTML = htmlString;
   }
 
+  /*function fetchRemainingItems(){
+    var htmlString = "<ul class=\"list-unstyled\">";
+    var firstUndoneTask;
+    var flag = false;
+    {% for task in task_list %}
+      if("{{ task.progress }}"== "not-done"){
+        if(!flag){
+          flag = true;
+          firstUndoneTask = "{{ task.pk }}";
+        }
+        htmlString += returnUnalteredTask("{{ task.id }}", "not-done");
+      }
+      else if ("{{ task.progress }}" == "partially-done") {
+        if(!flag){
+          flag = true;
+          firstUndoneTask = "{{ task.pk }}";
+        }
+        htmlString += returnPartiallyFilledTask("{{ task.id }}", "not-done");
+      }
+    {% endfor %}
+    htmlString += "</ul>";
+    document.getElementById("remainingItems").innerHTML = htmlString;
+    return firstUndoneTask;
+  }*/
   function fetchRemainingItems(tasks){
     var htmlString = "<ul class=\"list-unstyled\">";
     var firstUndoneTask;
@@ -194,18 +230,21 @@
 
   function calculateProgress(tasks){
     var progress = 0;
+    /*var numberOfTasks = {{ task_list.count }};
     {% for task in task_list %}
-      {% if(task.progress=="partially-done") %}
-        {% for subtask in task.subtask_set.all() %}
-          {% if(subtask.progress == "done") %}
-            progress += 100/({{ len(task_list) }} * len(task.subtask_set.all()));
-          {% endif %}
+      if("{{ task.progress }}"=="partially-done"){
+        var numberOfSubtasks = {{ task.subtask_set.all.count }}
+        {% for subtask in task.subtask_set.all %}
+          if("{{ subtask.progress }}" == "done"){
+            progress += 100/(numberOfTasks*numberOfSubtasks);
+          }
         {% endfor %}
-      {% elseif(task.progress=='done') %}
-        progress += 100/({{ len(task_list) }});
-      {% endif %}
-    {% endfor %}
-    /*for(var taskNumber in tasks){
+      }
+      else if("{{ task.progress }}"=="done")
+        progress += 100/numberOfTasks;
+    {% endfor %}*/
+    var numberOfTasks = Object.keys(tasks).length;
+    for(var taskNumber in tasks){
       var task = tasks[taskNumber];
       if(task.progress == "partially-done"){
         var subtasks = task.subtasks;
@@ -220,12 +259,37 @@
       else if(task.progress == "done"){
         progress += 100/(numberOfTasks);
       }
-    }*/
+    }
     document.getElementById("total_progress").innerHTML = "Current progress: "+progress +"%";
   }
 
   function fetchProgressBar(tasks){
     var progressbarString = "";
+    /*var numberOfTasks = {{ task_list.count }};
+    {% for task in task_list %}
+      var percent = 100/numberOfTasks;
+      if("{{ task.progress }}"=="not-done"){
+        progressbarString += returnEmptyBar(percent);
+      }
+      else if("{{ task.progress }}"== "partially-done"){
+        //progressbarString += returnParitalFilledBar(percent, {{ task.pk }});
+        var numberOfSubtasks = {{ task.subtask_set.all.count }};
+        var subpercent = percent/numberOfSubtasks;
+        {% for subtask in task.subtask_set.all %}
+          if("{{ subtask.progress }}"== "done"){
+            progressbarString += returnFilledBar(percent);
+          }
+          else{
+            progressbarString += returnEmptyBar(percent);
+          }
+        {% endfor %}
+      }
+      else{
+        progressbarString += returnFilledBar(percent);
+      }
+    {% endfor %}
+    document.getElementById("progressbar").innerHTML = progressbarString;
+*/
     var numberOfTasks = Object.keys(tasks).length;
     for(var taskNumber in tasks){
       var task = tasks[taskNumber];
@@ -243,15 +307,16 @@
     document.getElementById("progressbar").innerHTML = progressbarString;
    }
 
-   function returnEmptyBar(percent){
+  function returnEmptyBar(percent){
     return "<div class=\"progress-bar bg-white\" style=\"width:"+percent+"%\"></div>";
-   }
+  }
 
-   function returnFilledBar(percent){
+  function returnFilledBar(percent){
     return "<div class=\"progress-bar bg-success\" style=\"width:"+percent+"%\"></div>";
-   }
+  }
 
-   function returnParitalFilledBar(percent, subtasks){
+  
+  function returnParitalFilledBar(percent, subtasks){
     var numberOfSubtasks = Object.keys(subtasks).length;
     percent = percent/numberOfSubtasks;
     var progressbarBufferString = "";
@@ -265,7 +330,7 @@
       }
     }
     return progressbarBufferString;
-   }
+  }
 </script>
 </body>
 </html>

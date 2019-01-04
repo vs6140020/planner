@@ -15,5 +15,6 @@ def template(request, project_name):
 	task_list = Project.objects.get(project_name = project_name).task_set.all()
 	context = {
 		'task_list' : task_list,
+		'project_name' : project_name,
 	}
 	return render(request, 'plan/template.html', context)
