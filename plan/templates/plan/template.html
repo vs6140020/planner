@@ -24,13 +24,25 @@
 <body>
 	<div class="container">
     <br><br>
-    <h2>{{ project_name }}</h2>
+    <div class="row">
+      <div class="col-md-11"><h2>{{ project_name }}</h2></div>
+      <div class="col-md-1"><h2><button id="editButton" type="button" class="btn btn-success btn-sm" onclick="redirect()">Edit</button></h2></div>
+    </div>
     <h4 id="total_progress"></h4>
-    <br/><br/>
+    <br/>
     <div class="progress" id="progressbar" style="height:40px"></div>
     <br>
     <div class="row"><div class="col-md-8"><h4>Next item on your agenda:</h4></div></div>
-    <div class="row" id="next_item">
+    <div class="row">
+      <div class="col-md-8" id="next_item">
+
+      </div>
+      <div class="col-md-4" id="button_area">
+        <form method="post">
+        {% csrf_token %}
+        <button id="doneButton" type="button" class="btn btn-success btn-sm">Done</button>
+        </form>
+      </div>
     </div>
     <br>
     <div class="row">
@@ -49,11 +61,11 @@
 <script type="text/javascript"> 
   window.onload = fetchElements();
 
+  var tasks;
+
   function fetchElements(){
-    var tasks = loadObjects();
-    updateStatusAndProgressBar(tasks);
-    var firstUndoneTask = updateTodoAndDoneLists(tasks);
-    fetchNextItemOnAgenda(firstUndoneTask);
+    tasks = loadObjects();
+    updateElementsOnPage();
   }
 
   function loadObjects(){
@@ -76,6 +88,18 @@
     return tasks;
   }
 
+  function redirect(){
+    location.href = ("{% url 'editTemplate' project_name %}");
+  }
+
+  function updateElementsOnPage(){
+    calculateProgress();
+    fetchProgressBar();
+    var firstUndoneTask = fetchRemainingItems();
+    fetchDoneItems();
+    fetchNextItemOnAgenda(firstUndoneTask);
+  }
+
   /*function initializeObjects(){
     var subtask1_1 = {progress:"not-done", content: "Do this thing first for task1"};
     var subtask1_2 = {progress:"done", content:"Do this thing second for task1"};
@@ -94,22 +118,13 @@
     return tasks;
   }*/
 
-  function updateTodoAndDoneLists(tasks){
-    var task = fetchRemainingItems(tasks);
-    fetchDoneItems(tasks);
-    return task;
-  }
-
-  function updateStatusAndProgressBar(tasks){
-    calculateProgress(tasks);
-    fetchProgressBar(tasks);
-  }
-
   function fetchNextItemOnAgenda(firstUndoneTask){
-    var htmlString = "<div class=\"col-md-8\">";
     var content = "";
+    var taskOrSubtask = "";
+    var htmlString = "";
     if(Object.keys(firstUndoneTask.subtasks).length == 0){
       content += firstUndoneTask.content;
+      taskOrSubtask = "task";
     }
     else{
       //getting the first subtask and displaying it.
@@ -117,18 +132,120 @@
         var subtask = firstUndoneTask.subtasks[sbtsk];
         if (subtask.progress == "not-done") {
           content += subtask.content;
+          taskOrSubtask = "subtask";
           break;
         }
       }
     }
     if(content != ""){
-      htmlString += "<font size=\"5\">"+content+"</font></div>";
-      htmlString += "<div class=\"col-md-4\"><button type=\"button\" class=\"btn btn-success btn-sm\" value=\""+content+"\">Done</button></div>";
+      htmlString += "<font size=\"5\"><div id=\"content\" value=\""+content+"|||"+taskOrSubtask+"\">"+content+"</div></font>";
     }
     else{
       htmlString += "Congratulations on acheiving the set goal, there are no items remaining on your agenda.</div>";
+      hideButton();
     }
     document.getElementById("next_item").innerHTML = htmlString;
+  }
+
+  function hideButton() {
+  var x = document.getElementById("button_area");
+  if (x.style.display === "none") {
+    x.style.display = "block";
+  } else {
+    x.style.display = "none";
+  }
+  }
+
+  function StatusChange(buttonChange){
+    var taskDetails = (buttonChange.name).split("|||");
+    makeAjaxCall(taskDetails);
+  }
+
+  $("#doneButton").click(function () {
+      var taskDetails = $("#content").attr("value").split("|||");
+      makeAjaxCall(taskDetails);
+    });
+
+  function makeAjaxCall(taskDetails){
+    $.ajax({
+        type:"POST",
+        url: '/updateTodb/',
+        data: {
+          'content':taskDetails[0],
+          'taskOrSubtask' :taskDetails[1],
+        },
+        dataType: 'json',
+        success: function (data) {
+          if (data.is_updated) {
+            if(taskDetails[1]=='task'){
+              updateTaskAndReload(taskDetails[0]);
+            }
+            else{
+              updateSubtaskAndReload(taskDetails[0]);
+            }
+          }
+        }
+      });
+  }
+
+  function updateTaskAndReload(content){
+    for(var tsk in tasks){
+      var task = tasks[tsk];
+      if(task.content==content){
+        if(task.progress=='done')
+          task.progress='not-done';
+        else
+          task.progress='done';
+      }
+    }
+    refreshTasks();
+    updateElementsOnPage();
+  }
+
+  function updateSubtaskAndReload(content){
+    for(var tsk in tasks){
+      var task = tasks[tsk];
+      for(var sbtsk in task.subtasks){
+        var subtask = task.subtasks[sbtsk];
+        if(subtask.content==content){
+          if(subtask.progress=='done')
+            subtask.progress='not-done';
+          else
+            subtask.progress='done';
+        }
+      }
+    }
+    refreshTasks();
+    updateElementsOnPage();
+  }
+
+  function refreshTasks(){
+    for(var tsk in tasks){
+      var task = tasks[tsk];
+      var flag= 0;
+      if(Object.keys(task.subtasks).length != 0){
+        for(var sbtsk in task.subtasks){
+          var subtask = task.subtasks[sbtsk];
+          if(subtask.progress=='done'){
+            flag++;
+          }
+          else{
+            flag--;
+          }
+        }
+        if(flag == Object.keys(task.subtasks).length){
+          task.progress='done';
+        }
+        else if(flag == -(Object.keys(task.subtasks).length)){
+          task.progress='not-done';
+        }
+        else{
+          if(task.progress=='done' || task.progress=='not-done'){
+            task.progress='partially-done';
+          }
+        }
+      }
+    }
   }
 
   /*function fetchRemainingItems(){
@@ -155,7 +272,7 @@
     document.getElementById("remainingItems").innerHTML = htmlString;
     return firstUndoneTask;
   }*/
-  function fetchRemainingItems(tasks){
+  function fetchRemainingItems(){
     var htmlString = "<ul class=\"list-unstyled\">";
     var firstUndoneTask;
     var flag = false;
@@ -181,7 +298,7 @@
     return firstUndoneTask;
   }
 
-  function fetchDoneItems(tasks){
+  function fetchDoneItems(){
     var htmlString = "<ul class=\"list-unstyled\">";
     for(var tsk in tasks){
       var task = tasks[tsk];
@@ -198,13 +315,13 @@
 
   function returnPartiallyFilledTask(task, progressStatus){
     var checkedOrNot = (progressStatus == "done") ? "checked" : "";
-    var htmlString = "<li class=\"ui-state-default\"><label><input type=\"checkbox\" value=\"\"/><font class=\"task\" size=\"4\">"+task.content+"</font></label>";
+    var htmlString = "<li class=\"ui-state-default\"><label><input type=\"checkbox\" value=\"\" disabled><font class=\"task\" size=\"4\">"+task.content+"</font></label>";
     if (Object.keys(task.subtasks).length != 0){
       htmlString += "<ul>";
       for(sbtsk in task.subtasks){
         var subtask = task.subtasks[sbtsk];
         if(subtask.progress == progressStatus){
-          htmlString += "<li class=\"ui-state-default\"><label><input type=\"checkbox\" "+checkedOrNot+"><font class=\"task\" size=\"3\">"+subtask.content+"</font></label></li>";
+          htmlString += "<li class=\"ui-state-default\"><label><font class=\"task\" size=\"3\"><input type=\"checkbox\" onclick=\"StatusChange(this)\" name=\""+subtask.content+"|||subtask\""+checkedOrNot+">"+subtask.content+"</font></label></li>";
         }
       }
       htmlString += "</ul>";
@@ -215,12 +332,12 @@
 
   function returnUnalteredTask(task, progressStatus){
     var checkedOrNot = (progressStatus == "done") ? "checked" : "";
-    var htmlString = "<li class=\"ui-state-default\"><label><input type=\"checkbox\" value=\"\" "+checkedOrNot+"/><font class=\"task\" size=\"4\">"+task.content+"</font></label>";
+    var htmlString = "<li class=\"ui-state-default\"><label><input type=\"checkbox\" onclick=\"StatusChange(this)\" name=\""+task.content+"|||task\" "+checkedOrNot+"/><font class=\"task\" size=\"4\">"+task.content+"</font></label>";
     if(Object.keys(task.subtasks).length != 0){
       htmlString +="<ul>";
       for(sbtsk in task.subtasks){
         var subtask = task.subtasks[sbtsk];
-        htmlString += "<li class=\"ui-state-default\"><label><input type=\"checkbox\"  "+checkedOrNot+"><font class=\"task\" size=\"3\">"+subtask.content+"</font></label></li>";
+        htmlString += "<li class=\"ui-state-default\"><label><font class=\"task\" size=\"3\"><input type=\"checkbox\" onclick=\"StatusChange(this)\" name=\""+subtask.content+"|||subtask\""+checkedOrNot+">"+subtask.content+"</font></label></li>";
       }
       htmlString +="</ul>";
     }
@@ -228,7 +345,7 @@
     return htmlString;
   }
 
-  function calculateProgress(tasks){
+  function calculateProgress(){
     var progress = 0;
     /*var numberOfTasks = {{ task_list.count }};
     {% for task in task_list %}
@@ -263,7 +380,7 @@
     document.getElementById("total_progress").innerHTML = "Current progress: "+progress +"%";
   }
 
-  function fetchProgressBar(tasks){
+  function fetchProgressBar(){
     var progressbarString = "";
     /*var numberOfTasks = {{ task_list.count }};
     {% for task in task_list %}

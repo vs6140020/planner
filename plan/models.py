@@ -7,7 +7,7 @@ class Project(models.Model):
 		return self.project_name
 
 class Task(models.Model):
-	content = models.CharField(max_length=50)
+	content = models.CharField(max_length=300)
 	progress = models.CharField(max_length=20)
 	project = models.ForeignKey(Project, on_delete= models.CASCADE)
 	def __str__(self):
@@ -16,7 +16,7 @@ class Task(models.Model):
 		ordering = ('content',)
 
 class Subtask(models.Model):
-	content = models.CharField(max_length=50)
+	content = models.CharField(max_length=300)
 	progress = models.CharField(max_length=20)
 	task = models.ForeignKey(Task, on_delete= models.CASCADE)
 	def __str__(self):
